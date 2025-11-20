@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
     
     const record = records[0]
-    const questions = generateKBAQuestions(record)
+    const questions = await generateKBAQuestions(record)
     
     // Verify answers
     const isValid = verifyKBAAnswers(questions, answers)
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     }
     
     const record = records[0]
-    const questions = generateKBAQuestions(record)
+    const questions = await generateKBAQuestions(record)
     
     // Return questions without correct answers (for security)
     const questionsForClient = questions.map(q => ({

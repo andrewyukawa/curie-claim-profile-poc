@@ -1,41 +1,113 @@
 import { NPIRecord, KBAQuestion } from '@/types'
 
 /**
- * Generate realistic fake addresses for KBA wrong options
+ * Format an address in consistent sentence case
  */
-function generateFakeAddresses(): string[] {
-  const fakeAddresses = [
-    '1234 Medical Center Dr, New York, NY 10001',
-    '567 Healthcare Blvd, Los Angeles, CA 90210',
-    '890 Clinic Ave, Chicago, IL 60601',
-    '2345 Hospital Way, Houston, TX 77001',
-    '678 Wellness St, Phoenix, AZ 85001',
-    '901 Practice Ln, Philadelphia, PA 19101',
-    '1122 Doctor Dr, San Antonio, TX 78201',
-    '3344 Health Plaza, San Diego, CA 92101',
-    '5566 Medical Park, Dallas, TX 75201',
-    '7788 Care Center Rd, San Jose, CA 95101',
-    '9900 Physician Way, Austin, TX 73301',
-    '1357 Treatment Blvd, Jacksonville, FL 32099',
-    '2468 Therapy St, Fort Worth, TX 76101',
-    '3691 Healing Ave, Columbus, OH 43085',
-    '4820 Medicine Dr, Charlotte, NC 28201',
-    '5173 Specialty Ln, San Francisco, CA 94102',
-    '6284 Emergency Way, Indianapolis, IN 46201',
-    '7395 Surgery St, Seattle, WA 98101',
-    '8406 Radiology Rd, Denver, CO 80201',
-    '9517 Cardiology Ct, Washington, DC 20001'
-  ]
+function formatAddress(address: NPIRecord['addresses'][0]): string {
+  let formattedAddress = toSentenceCase(address.address_1)
   
-  // Shuffle and return
-  return fakeAddresses.sort(() => Math.random() - 0.5)
+  if (address.address_2) {
+    formattedAddress += `, ${toSentenceCase(address.address_2)}`
+  }
+  
+  formattedAddress += `, ${toSentenceCase(address.city)}, ${address.state} ${address.postal_code}`
+  
+  return formattedAddress
+}
+
+/**
+ * Convert text to sentence case (first letter capitalized, rest lowercase, except for state abbreviations)
+ */
+function toSentenceCase(text: string): string {
+  return text.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+/**
+ * Fetch random NPI records to get real addresses for KBA wrong options
+ */
+async function fetchRandomNPIAddresses(excludeNPI: string, count: number = 3): Promise<string[]> {
+  const addresses: string[] = []
+  
+  // Common medical specialties to search for diverse addresses
+  const specialties = ['Internal Medicine', 'Family Practice', 'Emergency Medicine', 'Pediatrics', 'Cardiology']
+  const states = ['CA', 'NY', 'TX', 'FL', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI']
+  
+  try {
+    // Try to fetch records from different specialties and states
+    for (let i = 0; i < count && addresses.length < count; i++) {
+      const randomState = states[Math.floor(Math.random() * states.length)]
+      const randomSpecialty = specialties[Math.floor(Math.random() * specialties.length)]
+      
+      const response = await fetch(
+        `https://npiregistry.cms.hhs.gov/api/?taxonomy_description=${encodeURIComponent(randomSpecialty)}&state=${randomState}&limit=10&version=2.1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+          },
+        }
+      )
+      
+      if (response.ok) {
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json()
+          
+          if (data.results && data.results.length > 0) {
+            // Get a random record from the results
+            const randomRecord = data.results[Math.floor(Math.random() * data.results.length)]
+            
+            // Skip if it's the same NPI we're verifying
+            if (randomRecord.number === excludeNPI) continue
+            
+            // Get practice address
+            const practiceAddress = randomRecord.addresses?.find(
+              (addr: any) => addr.address_purpose === 'LOCATION'
+            ) || randomRecord.addresses?.[0]
+            
+            if (practiceAddress) {
+              const formattedAddress = formatAddress(practiceAddress)
+              
+              // Avoid duplicates
+              if (!addresses.includes(formattedAddress)) {
+                addresses.push(formattedAddress)
+              }
+            }
+          }
+        }
+      }
+      
+      // Small delay to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  } catch (error) {
+    console.error('Error fetching random NPI addresses:', error)
+  }
+  
+  // If we couldn't get enough real addresses, fall back to some realistic ones
+  if (addresses.length < count) {
+    const fallbackAddresses = [
+      '1234 Medical Center Dr, New York, NY 10001',
+      '567 Healthcare Blvd, Los Angeles, CA 90210',
+      '890 Clinic Ave, Chicago, IL 60601',
+      '2345 Hospital Way, Houston, TX 77001',
+      '678 Wellness St, Phoenix, AZ 85001',
+    ].map(addr => toSentenceCase(addr))
+    
+    fallbackAddresses.forEach(addr => {
+      if (addresses.length < count && !addresses.includes(addr)) {
+        addresses.push(addr)
+      }
+    })
+  }
+  
+  return addresses.slice(0, count)
 }
 
 /**
  * Generate KBA (Knowledge-Based Authentication) questions from an NPI record
  * These are lightweight verification questions based on the NPI data
  */
-export function generateKBAQuestions(record: NPIRecord): KBAQuestion[] {
+export async function generateKBAQuestions(record: NPIRecord): Promise<KBAQuestion[]> {
   const questions: KBAQuestion[] = []
   
   // Question 1: Practice location (specific address)
@@ -45,19 +117,15 @@ export function generateKBAQuestions(record: NPIRecord): KBAQuestion[] {
   
   if (practiceAddresses.length > 0) {
     const correctLocation = practiceAddresses[0]
-    // Format full address: "123 Main St, Seattle, WA 98104"
-    let correctAnswer = correctLocation.address_1
-    if (correctLocation.address_2) {
-      correctAnswer += `, ${correctLocation.address_2}`
-    }
-    correctAnswer += `, ${correctLocation.city}, ${correctLocation.state} ${correctLocation.postal_code}`
+    // Format address in consistent sentence case
+    const correctAnswer = formatAddress(correctLocation)
     
-    // Generate plausible wrong address options
-    const wrongOptions = generateFakeAddresses().filter(opt => opt !== correctAnswer)
+    // Fetch real addresses from other NPI records
+    const wrongOptions = await fetchRandomNPIAddresses(record.number, 3)
     
     questions.push({
       question: 'Which of these locations have you practiced at?',
-      options: [correctAnswer, ...wrongOptions.slice(0, 3)].sort(() => Math.random() - 0.5),
+      options: [correctAnswer, ...wrongOptions].sort(() => Math.random() - 0.5),
       correctAnswer,
     })
   }
