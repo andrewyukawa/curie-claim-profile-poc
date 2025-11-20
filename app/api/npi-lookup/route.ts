@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchNPIByNumber, fetchNPIByName, processNPIMatches } from '@/lib/npi'
 
+// Mark this route as dynamic since it uses searchParams
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/npi-lookup
  * 

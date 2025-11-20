@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchNPIByNumber, processNPIMatches } from '@/lib/npi'
 import { generateKBAQuestions, verifyKBAAnswers } from '@/lib/kba'
 
+// Mark this route as dynamic since it uses searchParams
+export const dynamic = 'force-dynamic'
+
 /**
  * POST /api/verify
  * 
