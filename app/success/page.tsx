@@ -63,18 +63,12 @@ function SuccessContent() {
             </div>
           )}
           
-          <div className="space-y-3">
+          <div>
             <button
               onClick={() => router.push('/claim')}
               className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
             >
               Return to Home
-            </button>
-            <button
-              onClick={() => router.push('/lookup')}
-              className="w-full py-3 px-6 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Claim Another Profile
             </button>
           </div>
         </div>
