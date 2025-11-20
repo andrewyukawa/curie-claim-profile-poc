@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation'
 
-export default function Home() {
-  redirect("/claim");
+/**
+ * Root page - Redirects to /claim
+ */
+export default function HomePage() {
+  redirect('/claim')
 }
 
